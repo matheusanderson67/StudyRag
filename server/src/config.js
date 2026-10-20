@@ -13,12 +13,14 @@ loadEnv({
   quiet: true,
 });
 
+// Ignora variáveis vazias
 const env = Object.fromEntries(
-  Object.entries(process.env).filter(([, v]) => v !== '')
+  Object.entries(process.env).filter(([, value]) => value !== '')
 );
 
 const DEV_SECRET = 'dev-secret-troque-isto-antes-de-publicar';
 
+// VALIDAÇÃO DAS VARIÁVEIS DE AMBIENTE
 const schema = z.object({
   NODE_ENV: z.enum([
     'development',
@@ -38,11 +40,11 @@ const schema = z.object({
     .regex(/^[a-zA-Z0-9_]+$/)
     .default('studyrag'),
 
-  // SSL - MYSQL AIVEN
+  // SSL - AIVEN
   DB_SSL: z.enum(['true', 'false']).default('false'),
   DB_SSL_CA_BASE64: z.string().optional(),
 
-  // SEGURANCA
+  // SEGURANÇA
   JWT_SECRET: z.string()
     .min(16, 'JWT_SECRET precisa ter pelo menos 16 caracteres')
     .default(DEV_SECRET),
@@ -51,15 +53,17 @@ const schema = z.object({
 
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
 
-  // UPLOADS
+  // UPLOAD DE PDF
   UPLOAD_DIR: z.string().default('data/uploads'),
   MAX_PDF_MB: z.coerce.number().positive().default(20),
 
-  // INTELIGENCIA ARTIFICIAL
+  // GEMINI
   AI_PROVIDER: z.enum(['mock', 'gemini']).default('mock'),
+
   GEMINI_API_KEY: z.string().optional(),
 
-  GEMINI_MODEL: z.string().default('gemini-flash-latest'),
+  GEMINI_MODEL: z.string()
+    .default('gemini-flash-latest'),
 
   GEMINI_EMBEDDING_MODEL: z.string()
     .default('gemini-embedding-001'),
@@ -72,18 +76,24 @@ const schema = z.object({
   MAX_CONTEXT_CHUNKS: z.coerce.number().int().default(24),
 });
 
+// VALIDAR CONFIGURAÇÕES
 const parsed = schema.safeParse(env);
 
 if (!parsed.success) {
   const msg = parsed.error.issues
-    .map((i) => `  - ${i.path.join('.')}: ${i.message}`)
+    .map((issue) =>
+      `  - ${issue.path.join('.')}: ${issue.message}`
+    )
     .join('\n');
 
-  throw new Error(`Configuração inválida no .env:\n${msg}`);
+  throw new Error(
+    `Configuração inválida no .env:\n${msg}`
+  );
 }
 
 const e = parsed.data;
 
+// SEGURANÇA EM PRODUÇÃO
 if (
   e.NODE_ENV === 'production' &&
   e.JWT_SECRET === DEV_SECRET
@@ -108,29 +118,45 @@ if (e.CHUNK_OVERLAP >= e.CHUNK_SIZE) {
   );
 }
 
-// CONFIGURACAO DE SSL
+// SSL PARA MYSQL AIVEN
 function getMysqlSSL() {
   if (e.DB_SSL !== 'true') {
     return undefined;
   }
 
-  if (!e.DB_SSL_CA_BASE64) {
+  const valor = e.DB_SSL_CA_BASE64?.trim();
+
+  if (!valor) {
     throw new Error(
-      'DB_SSL=true exige DB_SSL_CA_BASE64 com o certificado CA da Aiven.'
+      'DB_SSL=true exige o certificado da Aiven em DB_SSL_CA_BASE64.'
     );
   }
 
-  const ca = Buffer.from(
-    e.DB_SSL_CA_BASE64.trim(),
-    'base64'
-  ).toString('utf8');
+  let ca = valor;
+
+  // Se for Base64, converte para PEM
+  if (!valor.includes('-----BEGIN CERTIFICATE-----')) {
+    try {
+      ca = Buffer.from(
+        valor.replace(/\s/g, ''),
+        'base64'
+      ).toString('utf8');
+    } catch {
+      throw new Error(
+        'Não foi possível decodificar o certificado SSL.'
+      );
+    }
+  }
+
+  // Converte caracteres \n em quebras de linha reais
+  ca = ca.replace(/\\n/g, '\n').trim();
 
   if (
     !ca.includes('-----BEGIN CERTIFICATE-----') ||
     !ca.includes('-----END CERTIFICATE-----')
   ) {
     throw new Error(
-      'DB_SSL_CA_BASE64 não contém um certificado PEM válido.'
+      'Certificado SSL inválido. Confira DB_SSL_CA_BASE64 no Render.'
     );
   }
 
@@ -141,6 +167,7 @@ function getMysqlSSL() {
   };
 }
 
+// CONFIGURAÇÃO EXPORTADA
 export const config = {
   env: e.NODE_ENV,
   port: e.PORT,
@@ -163,9 +190,14 @@ export const config = {
 
   rootDir,
 
-  uploadDir: path.resolve(rootDir, e.UPLOAD_DIR),
+  uploadDir: path.resolve(
+    rootDir,
+    e.UPLOAD_DIR
+  ),
 
-  maxPdfBytes: Math.round(e.MAX_PDF_MB * 1024 * 1024),
+  maxPdfBytes: Math.round(
+    e.MAX_PDF_MB * 1024 * 1024
+  ),
 
   ai: {
     provider: e.AI_PROVIDER,
