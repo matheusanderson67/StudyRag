@@ -1,0 +1,26 @@
+{
+  "name": "studyrag",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "StudyRAG — plataforma de estudo colaborativa com RAG (grupos, documentos compartilhados e IA com fontes)",
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "setup": "node scripts/setup.js",
+    "dev": "concurrently -n api,web -c blue,green \"npm run dev -w server\" \"npm run dev -w web\"",
+    "build": "npm run build -w web",
+    "start": "npm run start -w server",
+    "test": "npm run test -w server",
+    "check:ai": "npm run check:ai -w server",
+    "check:db": "npm run check:db -w server"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.6"
+  }
+}

@@ -1,0 +1,17 @@
+import { useEffect,useState } from 'react';
+import { api } from '../api.js';
+import Icon from './Icon.jsx';
+import { Spinner,ErrorBox } from '../ui.jsx';
+
+export default function Dashboard({groupId}) {
+  const [data,setData]=useState(null),[error,setError]=useState('');
+  useEffect(()=>{api(`/groups/${groupId}/dashboard`).then(setData).catch(e=>setError(e.message));},[groupId]);
+  if(error)return <ErrorBox error={error}/>;
+  if(!data)return <Spinner label="Calculando seu desempenho…"/>;
+  const attempts=[...data.attempts].reverse();
+  const recent=attempts.slice(-8);
+  const best=attempts.length?Math.max(...attempts.map(a=>Math.round(100*a.score/a.total))):0;
+  const average=Number(data.stats.percent);
+  const bars=recent.length?recent.map((a,i)=>({pct:Math.round(100*a.score/a.total),date:new Date(a.createdAt).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}),i})):[];
+  return <div className="stack analytics"><div className="tool-heading"><div className="tool-heading-icon green"><Icon name="chart" size={26}/></div><div><span className="eyebrow">SEUS RESULTADOS</span><h2>Meu desempenho</h2><p>Acompanhe como você está evoluindo nos simulados.</p></div></div><div className="analytics-stats"><div className="metric-card"><div className="metric-label">Taxa de acerto <Icon name="target" size={19}/></div><strong>{average}%</strong><span>Precisão nas respostas</span><div className="metric-meter"><div style={{width:`${average}%`}}/></div></div><div className="metric-card"><div className="metric-label">Simulados feitos <Icon name="quiz" size={19}/></div><strong>{data.stats.attempts}</strong><span>Tentativas realizadas</span><div className="metric-foot">Continue praticando!</div></div><div className="metric-card"><div className="metric-label">Melhor resultado <Icon name="trophy" size={19}/></div><strong>{best}%</strong><span>Seu recorde de acertos</span><div className="metric-foot">Seu potencial em números</div></div></div><div className="card chart-card"><div className="chart-card-head"><div><h3>Evolução de acertos</h3><p>Seus últimos {bars.length} simulados</p></div><span className="chart-legend"><span/> Acertos (%)</span></div>{!bars.length?<div className="chart-empty"><Icon name="chart" size={38}/><p>Faça seu primeiro simulado para visualizar sua evolução.</p></div>:<div className="bar-chart"><div className="chart-lines"><span>100%</span><span>75%</span><span>50%</span><span>25%</span><span>0%</span></div><div className="bars">{bars.map((bar,i)=><div key={i} className="bar-slot" title={`${bar.pct}% em ${bar.date}`}><div className="bar-value">{bar.pct}%</div><div className="bar-track"><div className="bar-fill" style={{height:`${Math.max(3,bar.pct)}%`}}/></div><span>{bar.date}</span></div>)}</div></div>}</div><div className="card history-card"><h3>Histórico de simulados</h3>{!attempts.length?<p className="muted">Seus resultados aparecerão aqui assim que você responder a um simulado.</p>:<div className="attempts-list">{[...data.attempts].slice(0,20).map((a,i)=><div className="attempt-item" key={a.id}><span className="attempt-icon"><Icon name="quiz" size={19}/></span><div><strong>{a.title}</strong><small><Icon name="calendar" size={13}/>{new Date(a.createdAt).toLocaleDateString('pt-BR')}</small></div><span className={`attempt-score ${a.score/a.total>=.7?'good':'needs-work'}`}>{a.score}/{a.total} · {Math.round(100*a.score/a.total)}%</span></div>)}</div>}</div></div>;
+}

@@ -1,0 +1,18 @@
+import { useState } from 'react';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../auth.jsx';
+import Icon from '../components/Icon.jsx';
+import { ErrorBox, useAction } from '../ui.jsx';
+
+export default function Login({ mode }) {
+  const { user, login, register } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { busy, error, run } = useAction();
+  const [form,setForm] = useState({ name:'',email:'',password:'' });
+  const isRegister=mode==='register';
+  if (user) return <Navigate to={location.state?.from?.pathname??'/'} replace/>;
+  const set=(k)=>(e)=>setForm(f=>({...f,[k]:e.target.value}));
+  const submit=(e)=>{e.preventDefault();run(async()=>{await(isRegister?register(form):login({email:form.email,password:form.password}));navigate(location.state?.from?.pathname??'/',{replace:true});});};
+  return <div className="auth-shell"><div className="auth-promo"><Link to="/" className="auth-brand"><span className="brand-symbol"><Icon name="books" size={26}/></span> study<span>rag</span></Link><div className="auth-promo-content"><div className="hero-tag"><Icon name="spark" size={16}/> SEU APRENDIZADO EM OUTRO NÍVEL</div><h1>Um jeito mais<br/>inteligente de <em>aprender.</em></h1><p>Transforme seus materiais em conhecimento. Estude em grupo, pratique com a IA e acompanhe sua evolução.</p><div className="auth-feature"><span><Icon name="bot" size={21}/></span><div><strong>Professor particular com IA</strong><small>Explicações sob medida para você</small></div></div><div className="auth-feature"><span><Icon name="quiz" size={21}/></span><div><strong>Simulados a partir de PDFs</strong><small>Pratique com conteúdo de verdade</small></div></div><div className="auth-feature"><span><Icon name="chart" size={21}/></span><div><strong>Acompanhe seu progresso</strong><small>Veja como você evolui a cada estudo</small></div></div></div><div className="auth-bottom">✦ StudyRAG • Seu conhecimento, seu ritmo.</div></div><div className="auth-form-side"><div className="auth-form-content"><div className="auth-form-head"><span className="eyebrow">{isRegister?'SEJA BEM-VINDO':'BOM TER VOCÊ DE VOLTA'}</span><h2>{isRegister?'Crie sua conta':'Entre na sua conta'}</h2><p>{isRegister?'Comece hoje a estudar com mais organização e inteligência.':'Acesse seu espaço de estudos e continue de onde parou.'}</p></div><form className="stack" onSubmit={submit}>{isRegister&&<label className="field"><span>Seu nome</span><input placeholder="Como podemos te chamar?" value={form.name} onChange={set('name')} required minLength={2} autoComplete="name"/></label>}<label className="field"><span>Seu e-mail</span><input type="email" placeholder="seuemail@exemplo.com" value={form.email} onChange={set('email')} required autoComplete="email"/></label><label className="field"><span>Senha</span><input type="password" placeholder="Digite sua senha" value={form.password} onChange={set('password')} required minLength={isRegister?8:1} autoComplete={isRegister?'new-password':'current-password'}/>{isRegister&&<small className="muted">Use pelo menos 8 caracteres.</small>}</label><ErrorBox error={error}/><button className="primary auth-submit" disabled={busy}>{busy?'Aguarde…':isRegister?'Criar minha conta':'Entrar na plataforma'} <Icon name="arrow" size={18}/></button></form><p className="auth-switch">{isRegister?<>Já possui uma conta? <Link to="/login">Faça login</Link></>:<>Ainda não tem uma conta? <Link to="/cadastro">Cadastre-se grátis</Link></>}</p></div><span className="auth-form-footer">Estude com confiança. Seus materiais privados continuam sendo seus.</span></div></div>;
+}
