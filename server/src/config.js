@@ -33,12 +33,14 @@ const schema = z.object({
   DB_PORT: z.coerce.number().int().default(3306),
   DB_USER: z.string().default('root'),
   DB_PASSWORD: z.string().default(''),
+
   DB_NAME: z.string()
     .regex(/^[a-zA-Z0-9_]+$/)
     .default('studyrag'),
 
-  // SSL PARA AIVEN
+  // SSL - MYSQL AIVEN
   DB_SSL: z.enum(['true', 'false']).default('false'),
+  DB_SSL_CA_BASE64: z.string().optional(),
 
   // SEGURANCA
   JWT_SECRET: z.string()
@@ -65,11 +67,8 @@ const schema = z.object({
   // RAG
   CHUNK_SIZE: z.coerce.number().int().default(900),
   CHUNK_OVERLAP: z.coerce.number().int().default(150),
-
   TOP_K: z.coerce.number().int().default(6),
-
   MIN_SIMILARITY: z.coerce.number().optional(),
-
   MAX_CONTEXT_CHUNKS: z.coerce.number().int().default(24),
 });
 
@@ -109,6 +108,39 @@ if (e.CHUNK_OVERLAP >= e.CHUNK_SIZE) {
   );
 }
 
+// CONFIGURACAO DE SSL
+function getMysqlSSL() {
+  if (e.DB_SSL !== 'true') {
+    return undefined;
+  }
+
+  if (!e.DB_SSL_CA_BASE64) {
+    throw new Error(
+      'DB_SSL=true exige DB_SSL_CA_BASE64 com o certificado CA da Aiven.'
+    );
+  }
+
+  const ca = Buffer.from(
+    e.DB_SSL_CA_BASE64.trim(),
+    'base64'
+  ).toString('utf8');
+
+  if (
+    !ca.includes('-----BEGIN CERTIFICATE-----') ||
+    !ca.includes('-----END CERTIFICATE-----')
+  ) {
+    throw new Error(
+      'DB_SSL_CA_BASE64 não contém um certificado PEM válido.'
+    );
+  }
+
+  return {
+    minVersion: 'TLSv1.2',
+    rejectUnauthorized: true,
+    ca,
+  };
+}
+
 export const config = {
   env: e.NODE_ENV,
   port: e.PORT,
@@ -119,10 +151,7 @@ export const config = {
     user: e.DB_USER,
     password: e.DB_PASSWORD,
     database: e.DB_NAME,
-
-    ssl: e.DB_SSL === 'true'
-      ? { minVersion: 'TLSv1.2' }
-      : undefined,
+    ssl: getMysqlSSL(),
   },
 
   jwt: {
