@@ -2,10 +2,7 @@ import { AIError } from '../lib/errors.js';
 import { contentTokens, splitSentences, stem } from '../lib/text.js';
 import { EMBEDDING_DIM, NOT_FOUND_MARKER } from './constants.js';
 
-/**
- * Provedor SIMULADO: não usa nenhuma IA externa. Serve para desenvolver, rodar os testes e demonstrar o
- * sistema sem chave de API. Embeddings = bag-of-words com hashing; "respostas" = frases do próprio contexto.
- */
+
 function fnv1a(str) {
   let h = 0x811c9dc5;
   for (let i = 0; i < str.length; i++) {

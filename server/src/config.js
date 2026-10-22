@@ -13,14 +13,12 @@ loadEnv({
   quiet: true,
 });
 
-// Ignora variáveis vazias
 const env = Object.fromEntries(
   Object.entries(process.env).filter(([, value]) => value !== '')
 );
 
 const DEV_SECRET = 'dev-secret-troque-isto-antes-de-publicar';
 
-// VALIDAÇÃO DAS VARIÁVEIS DE AMBIENTE
 const schema = z.object({
   NODE_ENV: z.enum([
     'development',
@@ -40,7 +38,7 @@ const schema = z.object({
     .regex(/^[a-zA-Z0-9_]+$/)
     .default('studyrag'),
 
-  // SSL - AIVEN
+  // AIVEN
   DB_SSL: z.enum(['true', 'false']).default('false'),
   DB_SSL_CA_BASE64: z.string().optional(),
 

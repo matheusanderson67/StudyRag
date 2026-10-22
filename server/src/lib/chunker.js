@@ -1,4 +1,3 @@
-/** Divide o texto em trechos de até `size` caracteres, com sobreposição, cortando em fim de frase quando possível. */
 export function chunkText(text, size = 900, overlap = 150) {
   if (overlap >= size) throw new Error('overlap deve ser menor que size');
   const clean = text.replace(/\s+/g, ' ').trim();
@@ -19,7 +18,6 @@ export function chunkText(text, size = 900, overlap = 150) {
   return chunks;
 }
 
-/** pages: [{ number, text }] -> [{ page, idx, content }] preservando a página de origem. */
 export function chunkPages(pages, size, overlap) {
   const out = [];
   let idx = 0;

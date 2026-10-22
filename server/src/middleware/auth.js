@@ -20,7 +20,6 @@ export function requireAuth(req, _res, next) {
 
 const uuid = z.string().uuid();
 
-/** Garante que o usuário logado é membro do grupo em :groupId. Não revela se o grupo existe. */
 export async function requireMember(req, _res, next) {
   const groupId = uuid.safeParse(req.params.groupId);
   if (!groupId.success) throw notFound('Grupo não encontrado.');

@@ -10,7 +10,7 @@ export const forbidden = (m = 'Você não tem permissão para isso.') => new Htt
 export const notFound = (m = 'Não encontrado.') => new HttpError(404, m);
 export const conflict = (m = 'Conflito.') => new HttpError(409, m);
 
-/** Falha ao falar com o provedor de IA (a mensagem já é amigável para o usuário). */
+/** Falha ao falar com o provedor de IA  */
 export class AIError extends Error {}
-/** PDF ilegível, vazio ou sem texto (a mensagem já é amigável para o usuário). */
+/** PDF ilegível, vazio ou sem texto  */
 export class PdfError extends Error {}

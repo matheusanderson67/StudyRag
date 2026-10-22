@@ -4,7 +4,7 @@ import { AIError, HttpError } from '../lib/errors.js';
 import { config } from '../config.js';
 
 export function errorHandler(err, req, res, _next) {
-  if (res.headersSent) return; // Timeout já respondeu; não tente enviar JSON duas vezes.
+  if (res.headersSent) return;
   if (err instanceof ZodError) {
     const issue = err.issues[0];
     return res.status(400).json({ error: issue?.message ?? 'Dados inválidos.', field: issue?.path?.join('.') });

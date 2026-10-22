@@ -7,7 +7,6 @@ const STOP = new Set(
 
 export const stripAccents = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-/** Palavras "de conteúdo" (sem stopwords, >= 3 letras). Mantém acentos por padrão. */
 export function contentTokens(text, { accents = true } = {}) {
   const words = text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
   return words
@@ -15,7 +14,6 @@ export function contentTokens(text, { accents = true } = {}) {
     .map((w) => (accents ? w : stripAccents(w)));
 }
 
-/** Raiz grosseira, usada só pelo provedor simulado para comparar singular/plural. */
 export const stem = (w) => (w.length > 5 ? w.replace(/(mente|coes|cao|oes|es|s)$/, '') : w.replace(/s$/, ''));
 
 export const toVector = (arr) => `[${arr.join(',')}]`;

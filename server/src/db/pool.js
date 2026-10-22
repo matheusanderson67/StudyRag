@@ -2,7 +2,7 @@
 import mysql from 'mysql2/promise';
 import { config } from '../config.js';
 
-// Pool de conexões com suporte a MySQL local e Aiven.
+//  conexões com suporte a MySQL local e Aiven.
 export const pool = mysql.createPool({
   ...config.mysql,
   waitForConnections: true,

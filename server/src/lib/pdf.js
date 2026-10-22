@@ -1,7 +1,7 @@
 import { extractText, getDocumentProxy } from 'unpdf';
 import { PdfError } from './errors.js';
 
-/** Extrai o texto de cada página: [{ number, text }]. */
+/** Extrai o texto de cada página*/
 export async function extractPages(buffer) {
   let pages;
   try {

@@ -1,4 +1,3 @@
-// Cria o .env a partir do .env.example e gera um JWT_SECRET aleatório. Seguro para rodar várias vezes.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';

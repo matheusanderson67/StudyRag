@@ -13,7 +13,7 @@ try {
   process.exit(1);
 }
 
-// Documentos que ficaram "processando" quando o servidor caiu não terminam sozinhos.
+
 await query(`UPDATE documents SET status = 'error', error = 'Processamento interrompido. Use Reindexar.' WHERE status = 'processing'`);
 
 const app = createApp();
