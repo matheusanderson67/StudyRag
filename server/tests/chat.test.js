@@ -9,7 +9,7 @@ const {createChatRouter}=await import('../src/routes/chat.js');
 const {errorHandler}=await import('../src/middleware/error.js');
 const user='11111111-1111-4111-8111-111111111111',other='22222222-2222-4222-8222-222222222222',group='33333333-3333-4333-8333-333333333333';
 let member=true,personal=false;
-const records=[];
+const records=[]; const images=new Map();
 pool.execute=async(sql,params)=>{
   if(sql.includes('SELECT role FROM group_members'))return [[...(params[1]===user&&member?[{role:'member'}]:[])]];
   throw Error('Unexpected SQL '+sql);
@@ -17,6 +17,9 @@ pool.execute=async(sql,params)=>{
 const runQuery=async(sql,params)=>{
  if(sql.includes('FROM personal_spaces'))return {rows:[],rowCount:personal?1:0};
  if(sql.includes('SELECT 1 FROM group_members'))return {rows:[],rowCount:member?1:0};
+ if(sql.includes('INSERT IGNORE INTO group_message_images')){if(!images.has(params[0]))images.set(params[0],params[1]);records.find(m=>m.id===params[0]).has_image=1;return {rows:[],rowCount:1};}
+ if(sql.includes('SELECT id FROM group_messages'))return {rows:records.filter(m=>m.client_id===params[2]),rowCount:1};
+ if(sql.includes('SELECT img.image_data'))return {rows:member&&images.has(Number(params[2]))?[{image_data:images.get(Number(params[2])),mime_type:'image/webp'}]:[],rowCount:1};
  if(sql.includes('INSERT INTO group_messages')){if(!records.some(m=>m.client_id===params[2]))records.push({id:records.length+1,user_id:params[1],client_id:params[2],content:params[3],created_at:new Date(),name:'Aluno'});return {rowCount:1,rows:[]};}
  if(sql.includes('FROM group_messages')){
   assert.match(sql,/JOIN group_members/);
@@ -26,7 +29,7 @@ const runQuery=async(sql,params)=>{
   return {rows:[...rows].reverse().slice(0,sql.includes('LIMIT 51')?51:50),rowCount:rows.length};
  }throw Error('Unexpected query '+sql);
 };
-const app=express();app.use(express.json());app.use('/api/groups/:groupId/chat',createChatRouter({runQuery,intervalMs:25}));app.use(errorHandler);
+const app=express();app.use(express.json());app.use('/api/groups/:groupId/chat',createChatRouter({runQuery,runTx:fn=>fn({query:runQuery}),intervalMs:25}));app.use(errorHandler);
 const server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));
 const base=`http://127.0.0.1:${server.address().port}/api/groups/${group}/chat`;
 after(async()=>{server.closeAllConnections();await new Promise(r=>server.close(r));await pool.end()});
@@ -56,6 +59,22 @@ test('two open streams receive a message and close on membership revocation',asy
  member=false;
  for(const r of readers)assert.match(await frame(r),/event: revoked/);
  controllers.forEach(c=>c.abort());member=true;
+});
+test('photo upload validates real bytes, persists image, and protects access',async()=>{
+ const {default:sharp}=await import('sharp');
+ const photo=await sharp({create:{width:30,height:20,channels:3,background:'#7755dd'}}).png().toBuffer();
+ const path='/api/groups/'+group+'/chat/messages',token=signToken(user),clientId='77777777-7777-4777-8777-777777777777';
+ const posted=await request(app).post(path).auth(token,{type:'bearer'}).field('content','').field('clientId',clientId).attach('image',photo,'foto.png');
+ assert.equal(posted.status,201);assert.equal(posted.body.message.hasImage,true);
+ const imagePath=path+'/'+posted.body.message.id+'/image';
+ const image=await request(app).get(imagePath).auth(token,{type:'bearer'});
+ assert.equal(image.status,200);assert.match(image.headers['content-type'],/image\/webp/);
+ assert.equal((await sharp(image.body).metadata()).width,30);
+ assert.equal((await request(app).get(imagePath).auth(signToken(other),{type:'bearer'})).status,404);
+ const bad=await request(app).post(path).auth(token,{type:'bearer'}).field('content','foto').field('clientId',clientId).attach('image',Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"></svg>'),'fake.png');
+ assert.equal(bad.status,400);
+ const large=await request(app).post(path).auth(token,{type:'bearer'}).field('content','foto').field('clientId',clientId).attach('image',Buffer.alloc(5*1024*1024+1),'large.png');
+ assert.equal(large.status,413);
 });
 test('history paginates older messages and rate limits sending',async()=>{
  while(records.length<55)records.push({id:records.length+1,user_id:user,client_id:'seed-'+records.length,content:'Histórico',created_at:new Date(),name:'Aluno'});

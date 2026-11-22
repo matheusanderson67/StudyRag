@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import { Badge, DocSelect, Empty, ErrorBox, Spinner, useAction } from '../ui.jsx';
+import ReviewSchedule from './ReviewSchedule.jsx';
 import Icon from './Icon.jsx';
 
 function Play({ quizId, onDone }) {
@@ -39,6 +40,7 @@ function Play({ quizId, onDone }) {
           {graded && <small className="muted">{graded.results[i].explanation}{graded.results[i].page ? ` (página ${graded.results[i].page})` : ''}</small>}
         </fieldset>
       ))}
+      {graded && <ReviewSchedule key={quizId} quiz={quiz} graded={graded}/>}
       <ErrorBox error={error} />
       <div className="row">
         {!graded && <button className="primary" onClick={submit} disabled={busy}>Enviar respostas</button>}

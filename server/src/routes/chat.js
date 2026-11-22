@@ -1,18 +1,20 @@
+import multer from 'multer';
+import { prepareChatImage } from '../services/chat-image.js';
 import { Router } from 'express';
 import { rateLimit } from 'express-rate-limit';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { config } from '../config.js';
-import { query } from '../db/pool.js';
+import { query, tx } from '../db/pool.js';
 import { requireAuth, requireMember } from '../middleware/auth.js';
-import { forbidden } from '../lib/errors.js';
+import { forbidden, badRequest, notFound } from '../lib/errors.js';
 
-export function createChatRouter({ runQuery = query, intervalMs = 1000 } = {}) {
+export function createChatRouter({ runQuery = query, runTx = tx, intervalMs = 1000 } = {}) {
   const router = Router({ mergeParams: true });
   const connections = new Map();
   const dto = r => ({ id: String(r.id), userId: r.user_id, name: r.name, content: r.content,
-    createdAt: new Date(r.created_at).toISOString(), clientId: r.client_id });
-  const select = `SELECT m.id, m.user_id, m.client_id, m.content, m.created_at, u.name
+    createdAt: new Date(r.created_at).toISOString(), clientId: r.client_id, hasImage: Boolean(r.has_image) });
+  const select = `SELECT m.id, m.user_id, m.client_id, m.content, m.created_at, u.name, EXISTS(SELECT 1 FROM group_message_images img WHERE img.message_id = m.id) AS has_image
     FROM group_messages m JOIN users u ON u.id = m.user_id
     JOIN group_members gm ON gm.group_id = m.group_id AND gm.user_id = $2
     WHERE m.group_id = $1`;
@@ -34,15 +36,39 @@ export function createChatRouter({ runQuery = query, intervalMs = 1000 } = {}) {
   });
   const sendLimit = rateLimit({ windowMs: 60000, limit: 30, keyGenerator: req => req.userId,
     standardHeaders: true, legacyHeaders: false, message: { error: 'Limite de 30 mensagens por minuto. Aguarde um pouco.' } });
-  router.post('/messages', sendLimit, async (req, res) => {
-    const body = z.object({ content: z.string().trim().min(1, 'Escreva uma mensagem.').max(2000, 'Use até 2.000 caracteres.'), clientId: z.string().uuid() }).parse(req.body);
+  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, files: 1, fields: 2, fieldSize: 10000 } });
+  const receivePhoto = (req, res, next) => upload.single('image')(req, res, err => {
+    if (err?.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'Envie uma foto de até 5 MB.' });
+    next(err);
+  });
+  router.post('/messages', sendLimit, receivePhoto, async (req, res) => {
+    const body = z.object({ content: z.string().trim().max(2000, 'Use até 2.000 caracteres.'), clientId: z.string().uuid() }).parse(req.body);
+    if (!body.content && !req.file) throw badRequest('Escreva uma mensagem ou escolha uma foto.');
+    const photo = req.file ? await prepareChatImage(req.file.buffer) : null;
+    const persist = async run => {
     // Recheck membership in the write statement too. Retry with same clientId is idempotent.
-    await runQuery(`INSERT INTO group_messages (group_id, user_id, client_id, content)
+    await run(`INSERT INTO group_messages (group_id, user_id, client_id, content)
       SELECT $1, $2, $3, $4 FROM group_members WHERE group_id = $1 AND user_id = $2
       ON DUPLICATE KEY UPDATE client_id = group_messages.client_id`, [req.group.id, req.userId, body.clientId, body.content]);
+    if (photo) {
+      const result = await run('SELECT id FROM group_messages WHERE group_id = $1 AND user_id = $2 AND client_id = $3', [req.group.id, req.userId, body.clientId]);
+      if (!result.rows[0]) throw forbidden('Você não participa mais deste grupo.');
+      await run('INSERT IGNORE INTO group_message_images (message_id, image_data, mime_type) VALUES ($1, $2, $3)', [result.rows[0].id, photo.data, photo.mime]);
+    }
+    };
+    if (photo) await runTx(c => persist(c.query)); else await persist(runQuery);
     const { rows } = await runQuery(`${select} AND m.user_id = $2 AND m.client_id = $3`, [req.group.id, req.userId, body.clientId]);
     if (!rows[0]) throw forbidden('Você não participa mais deste grupo.');
     res.status(201).json({ message: dto(rows[0]) });
+  });
+  router.get('/messages/:messageId/image', async (req, res) => {
+    const id = cursor.parse(req.params.messageId);
+    const { rows } = await runQuery(`SELECT img.image_data, img.mime_type FROM group_message_images img
+      JOIN group_messages m ON m.id = img.message_id
+      JOIN group_members gm ON gm.group_id = m.group_id AND gm.user_id = $2
+      WHERE m.group_id = $1 AND m.id = $3`, [req.group.id, req.userId, id]);
+    if (!rows[0]) throw notFound('Foto não encontrada.');
+    res.set({ 'Content-Type': 'image/webp', 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' }).send(rows[0].image_data);
   });
   router.get('/events', async (req, res) => {
     if ((connections.get(req.userId) || 0) >= 3) return res.status(429).json({ error: 'Feche outra aba de conversa antes de continuar.' });
