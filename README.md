@@ -162,3 +162,8 @@ As chamadas de RAG que precisam de embedding + geração compartilham **o mesmo 
 **Verificações efetuadas:** sintaxe de todos os arquivos `.js` do servidor; 9 testes isolados do Gemini (429, 503, quota diária, tempo de espera, embeddings e espaçamento de chamadas). **Pendências de validação:** a instalação das dependências não concluiu neste ambiente; por isso não foi possível executar o conjunto completo de testes, compilar o React com Vite, conectar a um MySQL real ou chamar sua chave Gemini. Depois de instalar com `npm install`, rode `npm test` (atenção: usa/limpa `studyrag_test`) e `npm run build`. Faça backup antes de substituir arquivos. Preserve `.env` e `data/uploads` do projeto anterior.
 
 **Para um resultado mais rápido:** na geração de simulados, escolha 10 questões quando possível; 20 a 30 questões podem exigir mais tempo que 15s na API gratuita do Gemini. Se receber 429 por cota diária, aguarde a renovação ou revise os limites do projeto no Google AI Studio: o código não aumenta a cota da conta.
+# Banco vetorial
+
+A integração opcional com Qdrant está descrita em [BANCO_VETORIAL.md](BANCO_VETORIAL.md).
+Inclui Docker Compose, migração dos embeddings existentes e preservação das permissões.
+

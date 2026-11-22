@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api.js';
+import Chat from '../components/Chat.jsx';
 import Ask from '../components/Ask.jsx';
 import Tutor from '../components/Tutor.jsx';
 import Dashboard from '../components/Dashboard.jsx';
@@ -14,6 +15,7 @@ import { ErrorBox, Spinner } from '../ui.jsx';
 
 const TABS = [
   { id:'inicio', label:'Visão geral', icon:'home' },
+  { id:'conversa', label:'Conversa', icon:'chat', badge:'NOVO' },
   { id:'biblioteca', label:'Biblioteca', icon:'file' },
   { id:'professor', label:'Professor IA', icon:'bot', badge:'NOVO' },
   { id:'perguntar', label:'Perguntas RAG', icon:'chat' },
@@ -56,6 +58,7 @@ export default function Group() {
     <div className="workspace-layout"><nav className="workspace-nav" aria-label="Ferramentas de estudo"><div className="workspace-nav-title">SEU ESPAÇO</div>{TABS.map(item=><button key={item.id} className={`workspace-tab ${tab===item.id?'active':''}`} onClick={()=>setTab(item.id)} aria-current={tab===item.id?'page':undefined}><Icon name={item.icon} size={19}/><span>{item.label}</span>{item.badge&&<small className="new-badge">{item.badge}</small>}</button>)}</nav>
       <section className="workspace-panel" aria-label={active.label}>
         {tab==='inicio' && <><div className="panel-title"><span className="eyebrow">VAMOS COMEÇAR?</span><h2>Seu aprendizado começa aqui <span>✦</span></h2><p>Escolha uma ferramenta e transforme seus documentos em conhecimento.</p></div><div className="feature-grid">{features.map(f=><button className="feature-card" key={f.id} onClick={()=>setTab(f.id)}><span className={`feature-icon ${f.cls}`}><Icon name={f.icon} size={25}/></span><strong>{f.name}</strong><span>{f.desc}</span><div className="feature-card-bottom">Explorar ferramenta <Icon name="arrow" size={17}/></div></button>)}</div><div className="notice-panel"><Icon name="file" size={24}/><div><strong>Comece enviando seus arquivos</strong><p>Envie seus PDFs na biblioteca para que a IA possa estudar com você usando o conteúdo certo.</p></div><button onClick={()=>setTab('biblioteca')}>Abrir biblioteca <Icon name="arrow" size={16}/></button></div></>}
+        {tab==='conversa'&&<Chat key={groupId} groupId={groupId}/>}
         {tab==='biblioteca'&&<Library groupId={groupId} docs={docs} reload={loadDocs}/>}
         {tab==='perguntar'&&<Ask groupId={groupId} docs={readyDocs}/>}
         {tab==='professor'&&<Tutor groupId={groupId} docs={readyDocs}/>}

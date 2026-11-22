@@ -1,3 +1,5 @@
+import { validateEvidence } from './evidence.js';
+import { AIError } from '../lib/errors.js';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import { getAI } from '../ai/index.js';
@@ -31,12 +33,26 @@ export async function ask({ groupId, userId, question, documentId = null }) {
     bestSimilarity: Number(Math.max(0, ...hits.map((h) => h.similarity)).toFixed(3)),
     threshold: ai.minSimilarity,
     provider: ai.label,
+    isMock: Boolean(ai.isMock),
   };
 
   let answer = NOT_FOUND_ANSWER;
   let found = false;
   let sources = [];
-  if (relevant.length) {
+  if (relevant.length && ai.name === 'gemini') {
+    const prompt = qaPrompt(question, relevant) + '\n\nRetorne somente JSON: {"found":true,"answer":"Resposta direta com referências [1]","citations":[{"passageId":1,"quote":"cópia literal de uma frase do trecho"}]}. Se faltar evidência para responder à pergunta, retorne {"found":false}. Cada afirmação deve ter uma referência [N]. Nunca invente citações. Em comparações, explique os dois conceitos e a diferença apenas se houver apoio para ambos. Não substitua a resposta por assuntos relacionados.';
+    const raw = await ai.generateJson({ system: SYSTEM_QA, prompt, task: 'qa', temperature: 0.1 });
+    let checked;
+    try { checked = validateEvidence(raw, relevant); }
+    catch { throw new AIError('A resposta não passou na verificação das fontes. Reformule a pergunta e tente novamente.'); }
+    found = checked.found;
+    if (found) {
+      answer = checked.answer;
+      sources = checked.cited.map(h => ({ documentId: h.document_id, filename: h.filename,
+        page: h.page, uploader: h.uploader, snippet: h.content, quote: h.quote, passageId: h.passageId,
+        similarity: Number(h.similarity.toFixed(3)) }));
+    }
+  } else if (relevant.length) {
     const raw = await ai.generateText({ system: SYSTEM_QA, prompt: qaPrompt(question, relevant), task: 'qa', temperature: 0.1 });
     if (!raw.includes(NOT_FOUND_MARKER)) {
       found = true;

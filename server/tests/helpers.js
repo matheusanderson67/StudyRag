@@ -9,6 +9,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 loadEnv({ path: path.join(root, '.env'), quiet: true });
 
 process.env.NODE_ENV = 'test';
+process.env.VECTOR_STORE = 'mysql';
 process.env.AI_PROVIDER = 'mock';
 delete process.env.GEMINI_API_KEY;
 delete process.env.MIN_SIMILARITY;

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { openDocument } from './api.js';
 
 export const Spinner = ({ label = 'Carregando…' }) => <div className="spinner" role="status"><span className="dot" />{label}</div>;
 
@@ -34,18 +35,20 @@ export function RichText({ text }) {
 }
 
 export function Sources({ sources }) {
+  const { busy, error, run } = useAction();
   if (!sources?.length) return null;
   return (
     <div className="sources">
-      <h4>Fontes utilizadas</h4>
+      <h4>Fontes utilizadas</h4><ErrorBox error={error}/>
       {sources.map((s, i) => (
         <details key={i}>
           <summary>
-            <strong>{s.filename}</strong> — página {s.page}
+            <strong>{s.passageId ? `[${s.passageId}] ` : ""}{s.filename}</strong> — página {s.page}
             {s.uploader && <span className="muted"> · enviado por {s.uploader}</span>}
             {s.similarity != null && <span className="muted"> · similaridade {s.similarity}</span>}
           </summary>
-          <blockquote>{s.snippet}</blockquote>
+          <blockquote>{s.quote || s.snippet}</blockquote>
+          {s.documentId && <button type="button" disabled={busy} onClick={() => run(() => openDocument(s.documentId, s.page))}>Abrir PDF na página {s.page}</button>}
         </details>
       ))}
     </div>

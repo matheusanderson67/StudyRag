@@ -1,10 +1,10 @@
+import { vectorStore } from '../vector/index.js';
 import { getAI } from '../ai/index.js';
 import { query } from '../db/pool.js';
 import { notFound } from '../lib/errors.js';
 import { contentTokens, stem } from '../lib/text.js';
 
-// Versão local: embeddings normalizados ficam no JSON do MySQL.
-// Para grupos pequenos/médios, calculamos cosseno no Node.js, sem exigir pgvector.
+// Local cosine search or Qdrant vector ranking, combined with lexical matches.
 const LIMIT_CANDIDATES = 4000;
 const RRF_K = 60;
 
@@ -44,20 +44,44 @@ function wordScore(tokens, content) {
 
 export async function retrieve({ groupId, userId, documentId = null, question, queryVector, limit }) {
   const { rows } = await query(
-    `SELECT c.id, c.content, c.page, c.embedding, d.id AS document_id, d.filename, u.name AS uploader
+    `SELECT c.id, c.content, c.page, ${vectorStore ? 'NULL' : 'c.embedding'} AS embedding, d.id AS document_id, d.filename, u.name AS uploader
        FROM chunks c JOIN documents d ON d.id = c.document_id JOIN users u ON u.id = d.uploader_id
       WHERE d.group_id = $1 AND d.status = 'ready' AND d.embedding_model = $2
         AND (d.visibility = 'group' OR d.uploader_id = $3) AND ($4 IS NULL OR d.id = $4)
       ORDER BY d.created_at DESC, c.id DESC LIMIT ${LIMIT_CANDIDATES}`,
     [groupId, getAI().embeddingModelId, userId, documentId],
   );
+  let hits = null;
+  if (vectorStore) {
+    const visible = await query(
+      `SELECT id FROM documents WHERE group_id = $1 AND status = 'ready' AND embedding_model = $2
+       AND (visibility = 'group' OR uploader_id = $3) AND ($4 IS NULL OR id = $4)`,
+      [groupId, getAI().embeddingModelId, userId, documentId],
+    );
+    hits = await vectorStore.search(getAI().embeddingModelId, queryVector, visible.rows.map(d => d.id));
+    if (hits.length) {
+      // Recheck current SQL permissions and status; never trust index payloads for access.
+      const ids = hits.map(h => h.id);
+      const extra = await query(
+        `SELECT c.id, c.content, c.page, NULL AS embedding, d.id AS document_id, d.filename, u.name AS uploader
+         FROM chunks c JOIN documents d ON d.id = c.document_id JOIN users u ON u.id = d.uploader_id
+         WHERE c.id IN (${ids.map((_, i) => `$${i + 5}`).join(',')})
+         AND d.group_id = $1 AND d.status = 'ready' AND d.embedding_model = $2
+         AND (d.visibility = 'group' OR d.uploader_id = $3) AND ($4 IS NULL OR d.id = $4)`,
+        [groupId, getAI().embeddingModelId, userId, documentId, ...ids],
+      );
+      const existing = new Set(rows.map(r => String(r.id)));
+      rows.push(...extra.rows.filter(r => !existing.has(String(r.id))));
+    }
+  }
+  const similarities = new Map((hits ?? []).map(h => [String(h.id), h.score]));
   const tokens = [...new Set(contentTokens(question, { accents: false }).map(stem))].slice(0, 20);
   const candidates = rows.map((r) => ({
     ...r,
-    similarity: cosine(queryVector, typeof r.embedding === 'string' ? JSON.parse(r.embedding) : r.embedding),
+    similarity: hits ? (similarities.get(String(r.id)) ?? 0) : cosine(queryVector, typeof r.embedding === 'string' ? JSON.parse(r.embedding) : r.embedding),
     lexical: wordScore(tokens, r.content),
   }));
-  const vector = [...candidates].sort((a,b) => b.similarity - a.similarity).slice(0, 30);
+  const vector = candidates.filter(r => !hits || similarities.has(String(r.id))).sort((a,b) => b.similarity - a.similarity).slice(0, 30);
   const textual = candidates.filter((r) => r.lexical > 0).sort((a,b) => b.lexical - a.lexical).slice(0, 30);
   const ranks = new Map();
   for (const list of [vector, textual]) list.forEach((r, i) => {

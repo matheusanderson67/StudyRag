@@ -8,6 +8,8 @@ export default function Ask({ groupId, docs }) {
   const [result, setResult] = useState(null);
   const [history, setHistory] = useState([]);
   const [debug, setDebug] = useState(false);
+  const [isMock, setIsMock] = useState(false);
+  useEffect(() => { api("/ai/status").then(d => setIsMock(d.isMock)).catch(() => {}); }, []);
   const { busy, error, run } = useAction();
 
   const loadHistory = () => api(`/groups/${groupId}/history`).then((d) => setHistory(d.history)).catch(() => {});
@@ -27,6 +29,7 @@ export default function Ask({ groupId, docs }) {
   return (
     <>
       <form className="card stack" onSubmit={submit}>
+        {isMock && <p className="alert" role="status">Modo demonstração: as respostas são simuladas. Configure o Gemini e reindexe os PDFs para usar a IA real.</p>}
         <DocSelect docs={docs} value={documentId} onChange={setDocumentId} />
         <label className="field"><span>Sua pergunta</span>
           <textarea rows={3} value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Ex.: Qual é a diferença entre processo e thread?" required minLength={3} maxLength={1000} />

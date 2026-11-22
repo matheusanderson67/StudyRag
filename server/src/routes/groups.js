@@ -1,3 +1,4 @@
+import { vectorStore } from '../vector/index.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -94,7 +95,8 @@ async function removeFiles(rows) {
 
 router.post('/:groupId/leave', requireMember, async (req, res) => {
   if (req.group.role === 'owner') throw badRequest('O dono não pode sair do grupo. Exclua o grupo se quiser encerrá-lo.');
-  const privateDocs = await query(`SELECT stored_path FROM documents WHERE group_id = $1 AND uploader_id = $2 AND visibility = 'private'`, [req.group.id, req.userId]);
+  const privateDocs = await query(`SELECT id, stored_path FROM documents WHERE group_id = $1 AND uploader_id = $2 AND visibility = 'private'`, [req.group.id, req.userId]);
+  if (vectorStore) for (const doc of privateDocs.rows) await vectorStore.remove('document_id', doc.id);
   await query(`DELETE FROM documents WHERE group_id = $1 AND uploader_id = $2 AND visibility = 'private'`, [req.group.id, req.userId]);
   await removeFiles(privateDocs.rows);
   await query('DELETE FROM group_members WHERE group_id = $1 AND user_id = $2', [req.group.id, req.userId]);
@@ -104,7 +106,8 @@ router.post('/:groupId/leave', requireMember, async (req, res) => {
 router.delete('/:groupId/members/:userId', requireMember, idParam('userId'), async (req, res) => {
   if (req.group.role !== 'owner') throw forbidden('Só o dono do grupo pode remover membros.');
   if (req.params.userId === req.userId) throw badRequest('Use "Sair do grupo" para sair.');
-  const privateDocs = await query(`SELECT stored_path FROM documents WHERE group_id = $1 AND uploader_id = $2 AND visibility = 'private'`, [req.group.id, req.params.userId]);
+  const privateDocs = await query(`SELECT id, stored_path FROM documents WHERE group_id = $1 AND uploader_id = $2 AND visibility = 'private'`, [req.group.id, req.params.userId]);
+  if (vectorStore) for (const doc of privateDocs.rows) await vectorStore.remove('document_id', doc.id);
   await query(`DELETE FROM documents WHERE group_id = $1 AND uploader_id = $2 AND visibility = 'private'`, [req.group.id, req.params.userId]);
   await removeFiles(privateDocs.rows);
   await query('DELETE FROM group_members WHERE group_id = $1 AND user_id = $2', [req.group.id, req.params.userId]);
@@ -114,6 +117,7 @@ router.delete('/:groupId/members/:userId', requireMember, idParam('userId'), asy
 router.delete('/:groupId', requireMember, async (req, res) => {
   if (req.group.role !== 'owner') throw forbidden('Só o dono do grupo pode excluí-lo.');
   if ((await query('SELECT 1 FROM personal_spaces WHERE group_id = $1', [req.group.id])).rowCount) throw forbidden('O espaço individual não pode ser excluído como um grupo.');
+  if (vectorStore) await vectorStore.remove('group_id', req.group.id);
   await query('DELETE FROM `groups` WHERE id = $1', [req.group.id]);
   await fs.rm(path.join(config.uploadDir, req.group.id), { recursive: true, force: true });
   res.status(204).end();

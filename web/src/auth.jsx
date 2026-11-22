@@ -26,5 +26,5 @@ export function AuthProvider({ children }) {
     setUser(data.user);
   };
 
-  return <AuthContext.Provider value={{ user, loading, login: (f) => authenticate('login', f), register: (f) => authenticate('register', f), logout }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ user, loading, login: (f) => authenticate('login', f), register: (f) => authenticate('register', f), googleLogin: () => authenticate('google/session', {}), logout }}>{children}</AuthContext.Provider>;
 }

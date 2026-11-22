@@ -1,3 +1,4 @@
+import { vectorStore } from '../vector/index.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -95,6 +96,14 @@ async function loadDocument(req) {
   return { doc: rows[0], role };
 }
 
+router.get('/documents/:documentId/file', idParam('documentId'), async (req, res, next) => {
+  const { doc } = await loadDocument(req);
+  res.set('Cache-Control', 'private, no-store');
+  res.type('application/pdf');
+  res.set('Content-Disposition', "inline; filename*=UTF-8''" + encodeURIComponent(doc.filename));
+  res.sendFile(path.resolve(doc.stored_path), err => { if (err) next(err); });
+});
+
 router.patch('/documents/:documentId', idParam('documentId'), async (req, res) => {
   const { visibility } = z.object({ visibility: visibilitySchema }).parse(req.body);
   const { doc, role } = await loadDocument(req);
@@ -115,6 +124,7 @@ router.post('/documents/:documentId/reindex', idParam('documentId'), async (req,
 router.delete('/documents/:documentId', idParam('documentId'), async (req, res) => {
   const { doc, role } = await loadDocument(req);
   if (!dto(doc, req.userId, role).canDelete) throw forbidden('Você não pode excluir este documento.');
+  if (vectorStore) await vectorStore.remove('document_id', doc.id);
   await query('DELETE FROM documents WHERE id = $1', [doc.id]);
   await fs.rm(doc.stored_path, { force: true });
   res.status(204).end();

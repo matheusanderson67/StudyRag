@@ -66,6 +66,17 @@ const schema = z.object({
   GEMINI_EMBEDDING_MODEL: z.string()
     .default('gemini-embedding-001'),
 
+  VECTOR_STORE: z.enum(['mysql', 'qdrant']).default('mysql'),
+  QDRANT_URL: z.string().url().default('http://127.0.0.1:6333'),
+  QDRANT_API_KEY: z.string().optional(),
+  QDRANT_COLLECTION_PREFIX: z.string().regex(/^[a-zA-Z0-9_-]+$/).default('studyrag'),
+  QDRANT_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
+
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_REDIRECT_URI: z.string().url().default('http://localhost:5173/api/auth/google/callback'),
+  FRONTEND_URL: z.string().url().default('http://localhost:5173'),
+
   // RAG
   CHUNK_SIZE: z.coerce.number().int().default(900),
   CHUNK_OVERLAP: z.coerce.number().int().default(150),
@@ -202,6 +213,21 @@ export const config = {
     geminiApiKey: e.GEMINI_API_KEY,
     geminiModel: e.GEMINI_MODEL,
     geminiEmbeddingModel: e.GEMINI_EMBEDDING_MODEL,
+  },
+
+  google: {
+    clientId: e.GOOGLE_CLIENT_ID,
+    clientSecret: e.GOOGLE_CLIENT_SECRET,
+    redirectUri: e.GOOGLE_REDIRECT_URI,
+    frontendUrl: new URL(e.FRONTEND_URL).origin,
+  },
+
+  vector: {
+    provider: e.VECTOR_STORE,
+    url: e.QDRANT_URL,
+    apiKey: e.QDRANT_API_KEY,
+    prefix: e.QDRANT_COLLECTION_PREFIX,
+    timeoutMs: e.QDRANT_TIMEOUT_MS,
   },
 
   rag: {

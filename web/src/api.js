@@ -2,6 +2,28 @@ const TOKEN_KEY = 'studyrag.token';
 export const getToken = () => localStorage.getItem(TOKEN_KEY);
 export const setToken = (t) => (t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY));
 
+export async function openDocument(documentId, page = 1) {
+  // Open synchronously to preserve the click gesture for popup blockers.
+  const tab = window.open('about:blank', '_blank');
+  if (!tab) throw new Error('Permita abrir uma nova aba para visualizar o PDF.');
+  tab.opener = null;
+  tab.document.title = 'Carregando PDF…';
+  try {
+    const response = await fetch(`/api/documents/${encodeURIComponent(documentId)}/file`, {
+      headers: { Authorization: `Bearer ${getToken()}` }, signal: AbortSignal.timeout(30000),
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || 'Não foi possível abrir o PDF.');
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+    const number = Number.isInteger(Number(page)) && Number(page) > 0 ? Number(page) : 1;
+    tab.location.replace(`${url}#page=${number}`);
+    setTimeout(() => URL.revokeObjectURL(url), 300000);
+  } catch (error) { tab.close(); throw error; }
+}
+
 /** Chamada à API. `body` pode ser objeto (JSON) ou FormData. Lança Error com a mensagem do servidor. */
 export async function api(path, { method = 'GET', body } = {}) {
   const headers = {};

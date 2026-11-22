@@ -8,6 +8,8 @@ import helmet from 'helmet';
 import { getAI } from './ai/index.js';
 import { config } from './config.js';
 import { errorHandler } from './middleware/error.js';
+import chatRoutes from './routes/chat.js';
+import googleRoutes from './routes/google.js';
 import authRoutes from './routes/auth.js';
 import documentRoutes from './routes/documents.js';
 import groupRoutes from './routes/groups.js';
@@ -64,7 +66,9 @@ export function createApp() {
     });
   });
 
+  app.use('/api/auth/google', authLimiter, googleRoutes);
   app.use('/api/auth', authLimiter, authRoutes);
+  app.use('/api/groups/:groupId/chat', chatRoutes);
   app.use('/api/groups', groupRoutes);
   app.use('/api/personal', personalRoutes);
   app.use('/api/planner', plannerRoutes);
